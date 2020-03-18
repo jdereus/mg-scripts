@@ -9,6 +9,9 @@ module load bedtools_2.26.0 samtools_1.3.1 bowtie2_bowtie2-2.2.3
 bowtie=$(which bowtie2)
 samtools=$(which samtools)
 bedtools=$(which bedtools)
+suffix=R*.fastq*
+NPROCS=16
+
 filter_db="/databases/bowtie/Human_phiX174/Human_phix174"
 tar="/bin/tar"
 
@@ -70,15 +73,14 @@ do
 	filename2_trim=$(echo "filename2_short" | sed -e 's/atropos//g')
 
         $bowtie -p 16 -x ${filter_db} --very-sensitive -1 ${atropos_qc_output}/$filename1 -2 ${atropos_qc_output}/$filename2 | $samtools view -f 12 -F 256 | $samtools sort -@ 16 -n | $samtools view -bS | $bedtools bamtofastq -i - -fq $final_output/${filename1_short}.trimmed.fastq -fq2 $final_output/${filename2_short}.trimmed.fastq &> $final_output/trim_logs/${filename1_short}.log
-#        gzip ${final_output}/${filename1_short}.filtered.fastq.gz ${final_output}/${filename1_short}.trimmed.fastq
-#        gzip ${final_output}/${filename2_short}.filtered.fastq.gz ${final_output}/${filename2_short}.trimmed.fastq
+
 #		$bowtie -p 16 -x ${filter_db} --very-sensitive -1 ${atropos_qc_output}/$filename1 -2 ${atropos_qc_output}/$filename2 | $samtools view -f 12 -F 256 | $samtools sort -@ 16 -n | $samtools view -bS | $bedtools bamtofastq -i - -fq $final_output/${filename1_short}.fastq -fq2 $final_output/${filename2_short}.fastq &> $final_output/trim_logs/${filename1_short}.log
 
 	gzip -f ${final_output}/${filename1_short}.trimmed.fastq
 	gzip -f ${final_output}/${filename2_short}.trimmed.fastq
 
 		#$tar --remove-files -czvf ${final_output}/${filename1_short}.filtered.fastq.gz ${final_output}/${filename1_short}.trimmed.fastq
-		#$tar --remove-files -czvf ${final_output}/${filename2_short}.filtered.fastq.gz ${final_output}/${filename2_short}.trimmed.fastq	
+		#$tar --remove-files -czvf ${final_output}/${filename2_short}.filtered.fastq.gz ${final_output}/${filename2_short}.trimmed.fastq
 
 	mv $atropos_qc_output/$filename1 $atropos_qc_output/processed_qc
   mv $atropos_qc_output/$filename2 $atropos_qc_output/processed_qc

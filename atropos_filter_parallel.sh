@@ -13,13 +13,15 @@ bowtie=$(which bowtie2)
 samtools=$(which samtools)
 bedtools=$(which bedtools)
 suffix=R*.fastq*
-NPROCS=16 
+NPROCS=16
 
 filter_db="/databases/bowtie/Human_phiX174/Human_phix174"
 tar="/bin/tar"
 
 #atropos_param="-a ATCTCGTATGCCGTCTTCTGCTTG -A GTGTAGATCTCGGTGGTCGCCGTATCATT -q 15 --minimum-length 100 --pair-filter any"
-atropos_param="-a GATCGGAAGAGCACACGTCTGAACTCCAGTCAC -A GATCGGAAGAGCGTCGTGTAGGGAAAGGAGTGT -q 15 --minimum-length 100 --pair-filter any"
+### nextseq-trim should be pulled from sample sheet identifier.  used for two color chemistry corrections
+### --nextseq-trim 30
+atropos_param="-a GATCGGAAGAGCACACGTCTGAACTCCAGTCAC -A GATCGGAAGAGCGTCGTGTAGGGAAAGGAGTGT -q 15 --minimum-length 100 --pair-filter any --nextseq-trim 30"
 
 atropos_qc_output=$dir/atropos_qc
 
@@ -33,7 +35,7 @@ pushd $dir
 
 #for file in `find $dir -maxdepth 1 -type f -name "*.fastq.gz" | grep R1`;
 #for file in `cat ${atropos_qc_output}/${trim_file}`;
-for file in `cat ${dir}/${trim_file} | grep "_R1_"`; 
+for file in `cat ${dir}/${trim_file} | grep "_R1_"`;
 do
   parent_dir=$(dirname $file)
   project_dir=$(echo $parent_dir | cut -f 2 -d"/")
@@ -51,7 +53,7 @@ done
 
 #for file in `find ${atropos_qc_output} -maxdepth 1 -type f -name "*.fastq" | grep _R1_`;
 #for file in `cat ${atropos_qc_output}/${trim_file}`;
-for file in `cat ${dir}/${trim_file}`; 
+for file in `cat ${dir}/${trim_file}`;
 do
 	#final_output=./filtered_sequences
 	final_output=$dir/filtered_sequences
@@ -93,7 +95,7 @@ for file in `cat $trim_file`; do
 
 done
 
-### option for removing index files 
+### option for removing index files
 
 #	if [[ ! -d ${final_output}/index_files ]]; then
 #		mkdir ${final_output}/index_files}
