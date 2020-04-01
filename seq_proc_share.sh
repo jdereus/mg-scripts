@@ -27,11 +27,18 @@ function platform() {
 }
 FIND=$(platform)
 
-
+### use parallel gzip if possible
+if [[ `which pigz` ]]; then
+  _zip=`which pigz`
+else
+  _zip=`which gzip`
+fi
 
 seqpath="$1"
 echo "seqpath=$seqpath"
 curl=$(which curl)
+
+### change this to $seqdir
 fastq_output=$output_dir
 
 
@@ -55,7 +62,7 @@ function prep_data_loc() {
   elif [[ -e $seqdir/processed ]]; then
 	   echo "bcl conversion complete?"
      return 266
-  elif [[ ! -e $seqdir/alockfile ]] || [[ ! -e $seqdir/processed ]]; then
+  elif [[ ! -e $seqdir/alockfile ]] || [[ ! -e $seqdir/processed ]] && [[ -e $seqdir/RTAComplete.txt ]]; then
     touch $seqdir/alockfile
     if [[ $? == 0 ]]; then
       pushd $seqdir/
@@ -84,7 +91,7 @@ function process_data() {
 echo cwd == $(pwd)
 for csvfile in $(ls ${seqdir}/*.csv | grep -v "sav.csv")
 do
-  labadmin_run=$(awk '/Description/{getline;print;}' $csvfile | cut -f3 -d",")
+  #labadmin_run=$(awk '/Description/{getline;print;}' $csvfile | cut -f3 -d",")
   if [[ $(ls /opt/samplesheets/$labadmin_run/ | wc -l) > "1" ]]; then
     multi_convert="TRUE"
   elif [[ $(ls /opt/samplesheets/$labadmin_run/ | wc -l) < "1" ]]; then
@@ -113,8 +120,35 @@ do
   ###rn1=$(expr $rn1 - 1 )
   job_read_val="Y$rn1"
 
+  ### get chemistry.  amplicon no human filter.  metagenomics likely
+  assay=$(expr $(awk '/Assay/{print;}' $csvfile | cut -f2 -d","))
+
+  if [[ $assay == 'Amplicon' ]]; then
+    echo no human filtered
+    echo put data in final location
+    :
+  elif [[ $assay == 'Metagenomics' ]]; then
+    ###declare -a
+    human_projects+=$(echo "("; awk 'human_projects')
+    if [[ ${#human_projects[@]} -eq 0 ]]; then
+      echo "no human filtering required"
+    elif [[ ${#human_projects[@]} > 0 ]]; then
+      ### get list of all projects
+      ###declare -a
+      all_projects+=$(awk -F"," 'BEGIN {getline Project} NR ==1, $0 ~ Project {next}; {if($10!=""){print $10}}' < $csvfile | sort -u)
+      ###03-29-18_RKL0010_Palmer_Wollams_Sejal_Baranzini_samplesheet_corrected_AGAIN_B_72019.csv | sort -u)
+    fi
+
+    if [[ ${#human_projects[@]} -eq ${#all_projects[@]} ]]; then
+      echo "human filter everything"
+    fi
+  fi
+
+### look at logic here
+  atropos_only=$(awk '/atropos_only/{print $2}' $csvfile)
+
 ### get qiita project identifier
-  ###qiita_proj=$(awk '/Description/{getline;print;}' $csvfile | cut -f3 -d",")
+  qiita_proj=$(awk '/qiita_ID/{print $2}' $csvfile) ### | cut -f3 -d",")
 
 ### get comma count.  8 == 16s, 12bp
 ### comma count > 8 == metagenomic
@@ -187,6 +221,7 @@ do
     echo "can't locate job submit script" $bcl_template
     return 263
   else
+    ### change this to $seqdir
 		fastq_output="${output_dir}$(basename $dirpath)"
     #fastq_output="${output_dir}$(basename $dirpath)/Data/Fastq/ "
     ### this is trying to be created twice
@@ -251,14 +286,64 @@ rm $seqdir/alockfile
 }
 
 function human_filter() {
+
 	pushd $output_dir
 
-	for dir in `ls -d */ | egrep -v 'Reports|Stats'`;
+	###for dir in `ls -d */ | egrep -v 'Reports|Stats'`;
+  for project in "${human_projects[@]}";
 		do
-			sh ~/atropos_filter.sh ${output_dir}/${dir}
+      sh ~/atropos_filter_qsub.sh ${fastq_output}/${project} split_file_ 8 human_projects all_projects $atropos_only
+			###sh ~/atropos_filter_qsub.sh ${output_dir}/${dir} split_file_ 8
 		done
 
 	popd
+
+  ###dir=$1
+  ###trim_file=$2
+  ###split_count=$3 ### must be less than 9
+  ###atropos_only=$4
+
+  dir=$output_dir
+  trim_file="split_file_"
+  split_count=8
+  atropos_only=$atropos_only
+
+  job_count=$(($split_count + 1))
+
+  file_base=$(basename $dir)
+
+  pushd $dir
+
+  #for proj_dir in $(ls */ -d | egrep -v 'Stats|Reports|moved|sample');
+  #do
+  #pushd $proj_dir
+
+  find . -maxdepth 1 -name "*.fastq.gz" -type f | grep "_R1_" | cut -f2 -d"/" > ${file_base}_file_list.txt
+  #ls | grep *.fastq.gz > ${file_base}_file_list.txt
+  line_count=$(cat ${file_base}_file_list.txt | wc -l)
+
+  split -l $(( $line_count / $split_count)) -d ${file_base}_file_list.txt split_file_
+
+  if [[ $? == 0 ]]; then
+  	rm ${file_base}_file_list.txt
+  fi
+
+  ###for file in `ls split_file_*`; do
+    split_line_count=$(cat split_file_* | wc -l)
+    #statements
+  ###done
+  if [[ ${split_line_count} -ne ${line_count} ]]; then
+    ###echo "total split line count ${split_line_count} does not equal number of files ${line_count}" | mailx -s "line count problems" jdereus@ucsd.edu
+    ( printf '%s\n\n\n' "total split line count ${split_line_count} does not equal number of files ${line_count}"
+      printf '%s\n' "directory location ${output_dir}" ) | mailx -s "line count problem" jdereus@ucsd.edu
+    exit 4567
+  fi
+  #qsub -v dir="$dir",trim_file="$trim_file" -t 0-$(($split_count + 1)) ~/filter_job_parallel.sh
+  pbs_job_id=$(qsub -v dir="${dir}/${proj_dir}",trim_file="$trim_file",atropos_only="${atropos_only}" -t 0-$(($split_count + 1)) -N ${dir}/${proj_dir} ~/filter_job_parallel.sh)
+
+  qsub -v dir="${dir}",proj_dir="${proj_dir}",NPROCS="4" -lnodes=1:ppn=4 -lpmem=1gb ~/fastqc_parallel.sh -W depend=afterarrayok:$pbs_job_id
+
+  popd
 }
 
 function concat_fastq() {
@@ -283,6 +368,9 @@ function concat_fastq() {
 	popd
 }
 
+function copy_qiita_data() {
+  ### some stuff here
+}
 
 # Step 1: check filesystem for new sequence directory if exists, check for
 #         RTAComplete.txt files
@@ -290,6 +378,11 @@ pushd $seqpath/
 path_count=(echo ${#raw_sequencing_loc[@]})
 declare -a newdirs=$(echo "("; $FIND $seqpath/ -maxdepth 2 ! -path $seqpath/ -type d -mtime -1 ; echo ")")
 count=${#newdirs[@]}
+
+### declare global arrays for project filtering
+declare -a human_projects
+declare -a all_projects
+
 popd
 labadmin_run=""
 
@@ -308,12 +401,17 @@ for dirpath in "${newdirs[@]}"
       prep_data_loc "$seqdir" "$labadmin_run"
 
       if [[ $? == 0 ]]; then
-
         process_data "$seqdir" "$dirpath" "$curl"
       else
         :
       fi
-	#			human_filter "$seqdir" "$output_dir"
+      if [[ ${#human_filter[@]} -eq 0 ]]; then
+        :
+        ### else the array has human_filter projects
+      else
+        ### should be fastq_output
+	      human_filter "$seqdir" "$output_dir" human_projects all_projects "$atropos_only"
+        ###check if atropos only, bowtie only, both
     fi
 
 		### end checking for RTAComplete.txt
