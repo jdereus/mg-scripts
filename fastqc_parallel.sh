@@ -2,6 +2,8 @@
 
 set -x
 
+source /home/${username}/miniconda3/bin/activate test_env_2
+
 dir=$1
 proj_dir=$2
 #trim_file=$2
@@ -16,9 +18,9 @@ source /home/jede9131/miniconda3/bin/activate test_env_2
 
 pushd $dir
 output_dir=$(basename $dir)
-fastq_raw=$dir/${proj_dir}
-atropos_qc_output=$dir/${proj_dir}/atropos_qc
-fastq_trimmed=$atropos_qc_output/${proj_dir}/filtered_sequences
+fastq_raw=${dir}/${proj_dir}
+atropos_qc_output=${dir}/${proj_dir}/atropos_qc
+fastq_trimmed=${atropos_qc_output}/${proj_dir}/filtered_sequences
 
 fastqc_output_dir=$(basename $(dirname $(pwd)) )/$(basename `pwd`)
 
@@ -39,19 +41,19 @@ fi
 
 #sleep 5
 pushd ${fastqc_raw}
-  find ${fastq_raw} -name  "*$suffix" -maxdepth 1 -type f -exec fastqc {} -t ${NPROCS} -o ${data_prefix}/${output_dir}/fastqc_raw \;
-  multiqc -o ${data_prefix}/${output_dir}/fastqc_raw
-  pushd ${data_prefix}/${output_dir}/fastqc_raw && tree -H '.' -L 1 --noreport --charset utf-8 > index.html && popd
+  find ${fastq_raw} -name  "*$suffix" -maxdepth 1 -type f -exec fastqc {} -t ${NPROCS} -o ${data_prefix}/${output_dir}/${proj_dir}/fastqc_raw \;
+  multiqc . -o ${data_prefix}/${output_dir}/fastqc_raw
+  pushd ${data_prefix}/${output_dir}/${proj_dir}/fastqc_raw && tree -H '.' -L 1 --noreport --charset utf-8 > index.html && popd
 popd
 pushd ${atropos_qc_output}
-  find ${atropos_qc_output} -name  "*$suffix" -maxdepth 1 -type f -exec fastqc {} -t ${NPROCS} -o ${data_prefix}/${output_dir}/fastqc_atropos \;
-  multiqc -o ${data_prefix}/${output_dir}/fastqc_atropos
-  pushd ${data_prefix}/${output_dir}/fastqc_atropos && tree -H '.' -L 1 --noreport --charset utf-8 > index.html && popd
+  find ${atropos_qc_output} -name  "*$suffix" -maxdepth 1 -type f -exec fastqc {} -t ${NPROCS} -o ${data_prefix}/${output_dir}/${proj_dir}/fastqc_atropos \;
+  multiqc . -o ${data_prefix}/${output_dir}/fastqc_atropos
+  pushd ${data_prefix}/${output_dir}/${proj_dir}/fastqc_atropos && tree -H '.' -L 1 --noreport --charset utf-8 > index.html && popd
 popd
 pushd ${fastq_trimmed}
-  find ${fastq_trimmed} -name  "*$suffix" -maxdepth 1 -type f -exec fastqc {} -t ${NPROCS} -o ${data_prefix}/${output_dir}/fastqc_trimmed \;
-  multiqc -o ${data_prefix}/${output_dir}/fastqc_trimmed
-  pushd ${data_prefix}/${output_dir}/fastqc_trimmed && tree -H '.' -L 1 --noreport --charset utf-8 > index.html && popd
+  find ${fastq_trimmed} -name  "*$suffix" -maxdepth 1 -type f -exec fastqc {} -t ${NPROCS} -o ${data_prefix}/${output_dir}/${proj_dir}/fastqc_trimmed \;
+  multiqc . -o ${data_prefix}/${output_dir}/fastqc_trimmed
+  pushd ${data_prefix}/${output_dir}/${proj_dir}/fastqc_trimmed && tree -H '.' -L 1 --noreport --charset utf-8 > index.html && popd
 popd
 
 pushd ${data_prefix}/${fastqc_output_dir}
